@@ -6,6 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "wallet-recover-local"
 version = "0.2.0"
 description = "AI-powered offline/online password recovery for authorized legacy Bitcoin Core wallets"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Alexander K."}]
+keywords = ["bitcoin", "wallet", "password-recovery", "berkeley-db", "secp256k1"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Security :: Cryptography",
+]
 requires-python = ">=3.8"
 dependencies = [
     "pycryptodome>=3.20",
