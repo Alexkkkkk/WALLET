@@ -23,3 +23,11 @@ wallet-backup*
 secrets/
 .wallet-recover-hashcat/
 .DS_Store
+
+# Recovery metadata is local and sensitive
+*.cp
+*.cp.*.tmp
+recover-checkpoint*.json
+
+# Source code, not a user wordlist
+!/wallet_recover/wordlist.py

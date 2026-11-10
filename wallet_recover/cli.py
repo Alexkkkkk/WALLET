@@ -1,32 +1,25 @@
 """Offline wordlist runner; no network access or telemetry."""
 import argparse
-import multiprocessing as mp
 import os
 from pathlib import Path
 import sys
-import time
 from . import __version__
 from .bdb import load_wallet
-from .crypto import try_password
+from .crypto import Decryptor
 
-_MASTERS = _KEYS = None
+_MASTERS = _KEYS = _DECRYPTOR = None
 
 def init_worker(masters, keys):
-    global _MASTERS, _KEYS
+    global _MASTERS, _KEYS, _DECRYPTOR
     _MASTERS, _KEYS = masters, keys
+    _DECRYPTOR = Decryptor(masters, keys)
 
 def worker(password):
-    return password if try_password(_MASTERS, _KEYS, password) else None
+    return password if _DECRYPTOR.try_password(password) else None
 
 def candidates(path):
-    # Only remove the line ending; preserve spaces and empty passwords.
-    with open(path, "rb") as f:
-        for line in f:
-            if line.endswith(b"\n"):
-                line = line[:-1]
-                if line.endswith(b"\r"):
-                    line = line[:-1]
-            yield line
+    from .wordlist import iter_lines
+    yield from iter_lines(path)
 
 def positive(value):
     n = int(value)
@@ -48,7 +41,10 @@ def build_parser():
     p.add_argument("--version", action="version", version="wallet-recover " + __version__)
     p.add_argument("--wallet", help="Closed wallet backup (BDB)")
     p.add_argument("--wordlist", help="Binary/UTF-8 candidates, one per line")
-    p.add_argument("--jobs", type=positive, default=max(1, os.cpu_count() or 1))
+    p.add_argument("--jobs", type=positive, default=max(1, min(64, os.cpu_count() or 1)))
+    p.add_argument("--checkpoint", help="Private atomic checkpoint JSON path (must not be an input file)")
+    p.add_argument("--resume", action="store_true", help="Resume --checkpoint, validating wallet and wordlist content")
+    p.add_argument("--deduplicate", metavar="NEW_PATH", help="Write a unique wordlist to a NEW private file, then exit")
     p.add_argument("--save", help="NEW output file for exact password bytes (mode 0600)")
     p.add_argument("--print-mkey", action="store_true", help="Inspect parameters without recovery")
     p.add_argument("--diagnose", action="store_true",
@@ -77,6 +73,15 @@ def main(argv=None):
     p = build_parser()
     args = p.parse_args(argv)
     try:
+        if args.resume and not args.checkpoint:
+            p.error("--resume requires --checkpoint")
+        if args.deduplicate:
+            if not args.wordlist:
+                p.error("--deduplicate requires --wordlist")
+            from .wordlist import export_unique
+            n = export_unique(args.wordlist, args.deduplicate)
+            print(f"Unique candidates written: {n}")
+            return 0
         if args.selftest:
             from .selftest import run
             run()
@@ -148,18 +153,47 @@ def main(argv=None):
             raise ValueError("Wordlist does not exist")
         if args.save and os.path.lexists(args.save):
             raise ValueError("--save file already exists; choose a new path")
-        start, completed, found = time.monotonic(), 0, None
-        context = mp.get_context("spawn")
-        with context.Pool(args.jobs, init_worker, (masters, keys)) as pool:
-            for result in pool.imap_unordered(worker, candidates(args.wordlist), chunksize=16):
-                completed += 1
-                if result is not None:
-                    found = result
-                    break
-                if completed % 500 == 0:
-                    elapsed = time.monotonic() - start
-                    print(f"Completed {completed}; {completed/max(elapsed, .001):.1f} candidates/s", flush=True)
-        elapsed = time.monotonic() - start
+        from .runner import RecoveryEngine
+        from .progress import Progress
+        if args.checkpoint and args.save and Path(args.checkpoint).resolve() == Path(args.save).resolve():
+            raise ValueError("Checkpoint and password output must be different files")
+        state = {"found": None, "error": None}
+        progress = Progress(total=0)
+        def sink(event, *values):
+            if event == "total":
+                progress.total = values[0]
+            elif event == "progress":
+                progress.update(values[0], rate=values[1], eta=values[2])
+            elif event == "found":
+                state["found"] = values[0]
+            elif event == "failed":
+                state["error"] = values[0]
+            elif event == "log":
+                print(values[0], file=sys.stderr)
+        engine = RecoveryEngine(args.wallet, args.wordlist, args.jobs, sink,
+                                checkpoint_path=args.checkpoint, resume=args.resume)
+        thread = engine.start()
+        interrupted = False
+        try:
+            while thread.is_alive():
+                thread.join(0.1)
+        except KeyboardInterrupt:
+            interrupted = True
+            engine.stop()
+            print("Stopping; saving the completed prefix…", file=sys.stderr)
+            while thread.is_alive():
+                try:
+                    thread.join(0.1)
+                except KeyboardInterrupt:
+                    engine.stop()
+        finally:
+            progress.update(engine.completed, rate=engine.rate)
+            progress.close()
+        if state["error"]:
+            raise ValueError(state["error"])
+        if interrupted:
+            return 130
+        completed, found, elapsed = engine.completed, state["found"], engine.elapsed
         if found is None:
             print(f"Not found: {completed} completed candidates in {elapsed:.1f}s")
             return 1

@@ -5,6 +5,18 @@
 ``--version``, а тест ``tests/test_sync.py`` сверяет его с README.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
-__all__ = ["__version__"]
+__all__ = ["__version__", "Decryptor", "derive_key_iv", "decrypt_cbc",
+           "public_key", "try_password", "WalletError", "KDFError", "DecryptError",
+           "VerifyError", "BDBError", "CheckpointError"]
+
+
+def __getattr__(name):
+    if name in {"Decryptor", "derive_key_iv", "decrypt_cbc", "public_key", "try_password"}:
+        from . import crypto
+        return getattr(crypto, name)
+    if name in {"WalletError", "KDFError", "DecryptError", "VerifyError", "BDBError", "CheckpointError"}:
+        from . import errors
+        return getattr(errors, name)
+    raise AttributeError(name)
