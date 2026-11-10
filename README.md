@@ -44,6 +44,20 @@ WALLET/
     └── words.example.txt
 ```
 
+## Быстрый запуск одной командой
+
+```bash
+git clone https://github.com/Alexkkkkk/WALLET.git
+cd WALLET
+./scripts/bootstrap.sh
+```
+
+Скрипт ставит системные библиотеки (`libdb-dev`, `python3-tk`, `xvfb`), создаёт `.venv`, устанавливает пакет с extras `[ai,test]`, затем сам прогоняет `--selftest` и весь набор тестов. Ожидаемый результат в конце — `Self-test passed` и `passed` без `failed`.
+
+Проверено в чистом Linux-контейнере (Ubuntu 24.04, Python 3.12): `42 passed`, GUI-тесты `12 passed, 1 skipped`, сквозной подбор пароля на синтетическом BDB-кошельке с сохранением в файл `0600`. Без `libdb-dev` драйвер `berkeleydb` не собирается — это главная причина «не работает» на чистой системе; без `python3-tk` не открывается окно.
+
+Непрерывная интеграция (`.github/workflows/ci.yml`) прогоняет те же проверки на Python 3.10/3.11/3.12, включая проверку грамматики под Python 3.8.
+
 ## Установка (Linux, Python 3.10+)
 
 ```bash
@@ -121,16 +135,16 @@ python -m wallet_recover \
 Офлайн-реконструктор превращает короткие воспоминания и известные фрагменты в ограниченный список вариантов, добавляя транслитерацию, типичные суффиксы и варианты раскладки. Файл создаётся эксклюзивно с правами 0600; существующие файлы не перезаписываются.
 
 ```bash
-python -m wallet_recover \\
-  --ai-generate /безопасный/путь/ai-candidates.txt \\
-  --memory "помню имя кота Барсик, год 2019 и восклицательный знак" \\
-  --ai-provider offline \\
+python -m wallet_recover \
+  --ai-generate /безопасный/путь/ai-candidates.txt \
+  --memory "помню имя кота Барсик, год 2019 и восклицательный знак" \
+  --ai-provider offline \
   --ai-limit 5000
 
 # Затем проверить сгенерированный список обычным локальным движком:
-python -m wallet_recover \\
-  --wallet /безопасный/путь/wallet-backup.dat \\
-  --wordlist /безопасный/путь/ai-candidates.txt \\
+python -m wallet_recover \
+  --wallet /безопасный/путь/wallet-backup.dat \
+  --wordlist /безопасный/путь/ai-candidates.txt \
   --jobs 4 --save /безопасный/путь/recovered.bin
 ```
 
@@ -138,7 +152,7 @@ python -m wallet_recover \\
 
 ```bash
 ollama pull mistral
-python -m wallet_recover --ai-generate /безопасный/путь/ai-candidates.txt \\
+python -m wallet_recover --ai-generate /безопасный/путь/ai-candidates.txt \
   --memory "ваши личные воспоминания о пароле" --ai-provider ollama --ai-model mistral
 ```
 
@@ -151,10 +165,10 @@ Ollama вызывается только по локальному адресу 
 ```bash
 # Установите Hashcat и локально получите wallet.hash доверенным extractor.
 # Запуск для своего кошелька (Bitcoin/Litecoin wallet.dat, Hashcat mode 11300):
-python -m wallet_recover \\
-  --hashcat-hash /безопасный/путь/wallet.hash \\
-  --hashcat-wordlist /безопасный/путь/ai-candidates.txt \\
-  --hashcat-state-dir /безопасный/путь/hashcat-state \\
+python -m wallet_recover \
+  --hashcat-hash /безопасный/путь/wallet.hash \
+  --hashcat-wordlist /безопасный/путь/ai-candidates.txt \
+  --hashcat-state-dir /безопасный/путь/hashcat-state \
   --i-own-wallet
 ```
 

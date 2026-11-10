@@ -1,0 +1,5 @@
+# Everything needed to run the test suite and the desktop GUI locally.
+-r requirements.txt
+pytest>=7,<10
+numpy>=1.22
+openai>=1.0
