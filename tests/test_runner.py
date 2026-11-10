@@ -110,3 +110,10 @@ def test_check_wordlist(tmp_path):
 def test_invalid_jobs(jobs):
     with pytest.raises(ValueError):
         RecoveryEngine("wallet", "words", jobs)
+
+
+def test_engine_stopped_flag():
+    engine = RecoveryEngine("wallet", "words", 1)
+    assert not engine.stopped()
+    engine.stop()
+    assert engine.stopped()
