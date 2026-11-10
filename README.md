@@ -56,7 +56,7 @@ cd WALLET
 
 Проверено в чистом Linux-контейнере (Ubuntu 24.04, Python 3.12): `42 passed`, GUI-тесты `12 passed, 1 skipped`, сквозной подбор пароля на синтетическом BDB-кошельке с сохранением в файл `0600`. Без `libdb-dev` драйвер `berkeleydb` не собирается — это главная причина «не работает» на чистой системе; без `python3-tk` не открывается окно.
 
-Непрерывная интеграция (`.github/workflows/ci.yml`) прогоняет те же проверки на Python 3.10/3.11/3.12, включая проверку грамматики под Python 3.8.
+Непрерывная интеграция (`.github/workflows/build.yml`) прогоняет те же проверки на Python 3.10/3.11/3.12, включая проверку грамматики под Python 3.8.
 
 ## Совместимость зависимостей
 
@@ -68,7 +68,7 @@ cd WALLET
 git clone https://github.com/Alexkkkkk/WALLET.git
 cd WALLET
 sudo apt-get update
-sudo apt-get install -y libdb-dev python3-dev python3-venv build-essential
+sudo apt-get install -y libdb-dev libdb++-dev python3-dev python3-venv build-essential
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[ai,test]'
