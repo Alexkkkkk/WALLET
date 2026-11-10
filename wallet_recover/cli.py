@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from . import __version__
 from .bdb import load_wallet
 from .crypto import try_password
 
@@ -39,13 +40,21 @@ def save_password(path, password):
     with os.fdopen(fd, "wb") as f:
         f.write(password)
 
-def main(argv=None):
-    p = argparse.ArgumentParser(description="Offline recovery for your own legacy Bitcoin Core wallet")
+def build_parser():
+    """Single source of truth for every CLI flag (README and tests follow it)."""
+    p = argparse.ArgumentParser(
+        prog="wallet-recover",
+        description="Offline recovery for your own legacy Bitcoin Core wallet")
+    p.add_argument("--version", action="version", version="wallet-recover " + __version__)
     p.add_argument("--wallet", help="Closed wallet backup (BDB)")
     p.add_argument("--wordlist", help="Binary/UTF-8 candidates, one per line")
     p.add_argument("--jobs", type=positive, default=max(1, os.cpu_count() or 1))
     p.add_argument("--save", help="NEW output file for exact password bytes (mode 0600)")
     p.add_argument("--print-mkey", action="store_true", help="Inspect parameters without recovery")
+    p.add_argument("--diagnose", action="store_true",
+                   help="AI-диагностика кошелька: метод KDF, раунды, salt, ckey, сложность")
+    p.add_argument("--plan", action="store_true",
+                   help="Полный отчёт AI Wallet Copilot: диагностика + бенчмарк + фазы атаки")
     p.add_argument("--selftest", action="store_true")
     p.add_argument("--ai-generate", metavar="PATH", help="Generate a prioritized AI wordlist locally; output must not exist")
     p.add_argument("--memory", default="", help="Password fragments/memories (sent only to the explicitly selected provider)")
@@ -62,6 +71,10 @@ def main(argv=None):
     p.add_argument("--hashcat-state-dir", default=".wallet-recover-hashcat", help="Private local Hashcat potfile directory")
     p.add_argument("--hashcat-resume", action="store_true", help="Resume saved local Hashcat session")
     p.add_argument("--i-own-wallet", action="store_true", help="Confirm this Hashcat operation targets your wallet or one you are authorized to recover")
+    return p
+
+def main(argv=None):
+    p = build_parser()
     args = p.parse_args(argv)
     try:
         if args.selftest:
@@ -104,6 +117,17 @@ def main(argv=None):
             print("Hashcat завершил работу. Hash и potfile остались на этом компьютере.")
             print(f"Секретный potfile: {Path(args.hashcat_state_dir) / 'wallet.potfile'}")
             return code
+        if args.diagnose or args.plan:
+            if not args.wallet:
+                p.error("--diagnose/--plan требуют --wallet")
+            from .plan import wallet_plan
+            plan = wallet_plan(args.wallet, jobs=args.jobs)
+            if args.plan:
+                print(plan.report)
+            else:
+                print(plan.summary())
+                print(f"Скорость (1 ядро): ~{plan.speed_ps:.1f} паролей/с")
+            return 0
         if not args.wallet:
             p.error("--wallet is required")
         masters, keys = load_wallet(args.wallet)
