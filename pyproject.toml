@@ -6,14 +6,22 @@ build-backend = "setuptools.build_meta"
 name = "wallet-recover-local"
 version = "0.1.0"
 description = "Offline wordlist recovery for authorized legacy Bitcoin Core wallets"
-requires-python = ">=3.10"
-dependencies = ["pycryptodome>=3.20,<4", "cryptography>=42,<51", "bsddb3>=6.2.9,<7"]
+requires-python = ">=3.8"
+dependencies = [
+    "pycryptodome>=3.20,<4",
+    "cryptography==42.0.7; python_version < '3.9' and sys_platform == 'win32'",
+    "cryptography>=42,<51; python_version >= '3.9' or sys_platform != 'win32'",
+    "bsddb3>=6.2.9,<7",
+]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<10"]
+test = ["pytest>=7,<10"]
 
 [project.scripts]
 wallet-recover = "wallet_recover.cli:main"
+
+[project.gui-scripts]
+wallet-recover-gui = "wallet_recover.gui:main"
 
 [tool.setuptools.packages.find]
 include = ["wallet_recover*"]
