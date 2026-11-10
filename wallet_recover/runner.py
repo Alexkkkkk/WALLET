@@ -65,6 +65,10 @@ class RecoveryEngine:
     def stop(self):
         self._stop.set()
 
+    def stopped(self):
+        """Whether stop() has already been requested for this engine."""
+        return self._stop.is_set()
+
     def is_running(self):
         return self._thread is not None and self._thread.is_alive()
 
