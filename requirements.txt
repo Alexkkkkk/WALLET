@@ -1,0 +1,3 @@
+pycryptodome>=3.20,<4
+cryptography>=42,<51
+bsddb3>=6.2.9,<7
