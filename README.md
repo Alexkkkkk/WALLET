@@ -75,6 +75,19 @@ pip install -e '.[ai,test]'
 python -m wallet_recover --selftest
 ```
 
+### Установка из релиза (без клонирования репозитория)
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libdb-dev libdb++-dev python3-dev python3-venv build-essential
+python3 -m venv .venv
+source .venv/bin/activate
+pip install https://github.com/Alexkkkkk/WALLET/releases/download/v0.2.0/wallet_recover_local-0.2.0-py3-none-any.whl
+python -m wallet_recover --selftest
+```
+
+Готовые пакеты собраны CI и приложены к релизу [v0.2.0](https://github.com/Alexkkkkk/WALLET/releases/tag/v0.2.0): [wheel](https://github.com/Alexkkkkk/WALLET/releases/download/v0.2.0/wallet_recover_local-0.2.0-py3-none-any.whl) и [sdist](https://github.com/Alexkkkkk/WALLET/releases/download/v0.2.0/wallet_recover_local-0.2.0.tar.gz). Актуальный релиз всегда доступен по ссылке [releases/latest](https://github.com/Alexkkkkk/WALLET/releases/latest) — при выходе новой версии замените тег в URL (например, `v0.3.0`).
+
 Зависимости: `pycryptodome` (AES), `cryptography` (secp256k1), `berkeleydb` на Python 3.10+ или `bsddb3` на старых Python; `.[ai]` устанавливает NumPy для AI-модулей. Установка пакетов и скачивание локальной модели Ollama требуют интернета; при офлайн-поиске и выборе Ollama приложение не отправляет кошелёк, хеш или словарь в сеть. Windows/macOS не тестировались. Для GUI на Ubuntu дополнительно нужны `python3-tk`; для безэкранных GUI-тестов — `xvfb`.
 
 ## Оконный интерфейс и Windows 7 / 10
