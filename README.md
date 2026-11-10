@@ -58,6 +58,10 @@ cd WALLET
 
 Непрерывная интеграция (`.github/workflows/ci.yml`) прогоняет те же проверки на Python 3.10/3.11/3.12, включая проверку грамматики под Python 3.8.
 
+## Совместимость зависимостей
+
+`berkeleydb` — нативное расширение, собираемое из исходников, готовых wheel на PyPI нет. Версия 18.1.16+ не собирается на CPython 3.10, поэтому в `requirements.txt` и `pyproject.toml` стоит маркер: `berkeleydb>=18.1,<18.1.16` для Python 3.10 и `berkeleydb>=18.1` для 3.11+. Сборка требует `libdb-dev`, `libdb++-dev` и компилятора — их ставит `scripts/bootstrap.sh` и CI.
+
 ## Установка (Linux, Python 3.10+)
 
 ```bash
