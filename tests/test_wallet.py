@@ -11,7 +11,7 @@ import pytest
 from wallet_recover.crypto import derive_key_iv, decrypt_cbc, public_key, try_password
 from wallet_recover.serialize import Reader, parse_records
 from wallet_recover.selftest import fixture_records, vector, encrypt, PASSWORD, run
-from wallet_recover.bdb import load_wallet
+from wallet_recover.bdb import load_wallet, bdb_module
 from wallet_recover.cli import candidates, save_password, main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,7 +121,7 @@ def test_lines_and_exclusive_output(tmp_path):
     assert output.read_bytes() == b'\xff secret '
 
 def make_bdb(path):
-    from bsddb3 import db
+    db = bdb_module()
     handle = db.DB()
     handle.open(str(path), 'main', db.DB_BTREE, db.DB_CREATE)
     for key, value in fixture_records():

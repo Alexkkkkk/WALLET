@@ -47,6 +47,21 @@ def main(argv=None):
     p.add_argument("--save", help="NEW output file for exact password bytes (mode 0600)")
     p.add_argument("--print-mkey", action="store_true", help="Inspect parameters without recovery")
     p.add_argument("--selftest", action="store_true")
+    p.add_argument("--ai-generate", metavar="PATH", help="Generate a prioritized AI wordlist locally; output must not exist")
+    p.add_argument("--memory", default="", help="Password fragments/memories (sent only to the explicitly selected provider)")
+    p.add_argument("--seed", action="append", default=[], help="Known word/name fragment; may be repeated")
+    p.add_argument("--ai-provider", choices=("offline", "ollama", "openai"), default="offline",
+                   help="AI provider (default: offline; Ollama is local; openai sends prompt text remotely)")
+    p.add_argument("--ai-model", help="Model name (default: mistral for Ollama, gpt-5-mini for OpenAI)")
+    p.add_argument("--ai-ollama-url", default="http://127.0.0.1:11434", help="Local Ollama URL")
+    p.add_argument("--ai-limit", type=positive, default=5000, help="Maximum generated candidates")
+    p.add_argument("--ai-no-rank", action="store_true", help="Skip neural probability ranking")
+    p.add_argument("--ai-no-neural", action="store_true", help="Skip experimental local character Transformer sampling")
+    p.add_argument("--hashcat-hash", help="Run installed local Hashcat against a locally extracted wallet hash")
+    p.add_argument("--hashcat-wordlist", help="Candidate file for local Hashcat (default: --wordlist)")
+    p.add_argument("--hashcat-state-dir", default=".wallet-recover-hashcat", help="Private local Hashcat potfile directory")
+    p.add_argument("--hashcat-resume", action="store_true", help="Resume saved local Hashcat session")
+    p.add_argument("--i-own-wallet", action="store_true", help="Confirm this Hashcat operation targets your wallet or one you are authorized to recover")
     args = p.parse_args(argv)
     try:
         if args.selftest:
@@ -54,6 +69,41 @@ def main(argv=None):
             run()
             print("Self-test passed (synthetic records; not a real wallet)")
             return 0
+        if args.ai_generate:
+            if not args.memory and not args.seed and not args.wordlist:
+                p.error("--ai-generate requires at least one of --memory, --seed, or --wordlist")
+            from .ai.pipeline import export_candidates
+            ai_model = args.ai_model or ("gpt-5-mini" if args.ai_provider == "openai" else "mistral")
+            count = export_candidates(
+                args.ai_generate,
+                prompt=args.memory,
+                seed_words=args.seed,
+                wordlist=args.wordlist,
+                max_candidates=args.ai_limit,
+                provider=args.ai_provider,
+                model=ai_model,
+                ollama_url=args.ai_ollama_url,
+                include_neural_lm=not args.ai_no_neural,
+                rank=not args.ai_no_rank,
+            )
+            print(f"Создан локальный словарь: {args.ai_generate} ({count} уникальных кандидатов)")
+            if args.ai_provider == "openai":
+                print("ВНИМАНИЕ: текст воспоминаний был отправлен выбранному внешнему AI-провайдеру.")
+            else:
+                print("Сетевые запросы не выполнялись; выходной файл создан с правами 0600.")
+            return 0
+        if args.hashcat_hash:
+            if not args.i_own_wallet:
+                p.error("Перед Hashcat-проверкой подтвердите владение флагом --i-own-wallet")
+            hash_wordlist = args.hashcat_wordlist or args.wordlist
+            if not hash_wordlist:
+                p.error("Для Hashcat нужны --hashcat-wordlist или --wordlist")
+            from .ai.hashcat import run_hashcat
+            code = run_hashcat(args.hashcat_hash, hash_wordlist, args.hashcat_state_dir,
+                               resume=args.hashcat_resume)
+            print("Hashcat завершил работу. Hash и potfile остались на этом компьютере.")
+            print(f"Секретный potfile: {Path(args.hashcat_state_dir) / 'wallet.potfile'}")
+            return code
         if not args.wallet:
             p.error("--wallet is required")
         masters, keys = load_wallet(args.wallet)

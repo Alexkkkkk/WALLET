@@ -4,18 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wallet-recover-local"
-version = "0.1.0"
-description = "Offline wordlist recovery for authorized legacy Bitcoin Core wallets"
+version = "0.2.0"
+description = "AI-powered offline/online password recovery for authorized legacy Bitcoin Core wallets"
 requires-python = ">=3.8"
 dependencies = [
-    "pycryptodome>=3.20,<4",
+    "pycryptodome>=3.20",
     "cryptography==42.0.7; python_version < '3.9' and sys_platform == 'win32'",
     "cryptography>=42,<51; python_version >= '3.9' or sys_platform != 'win32'",
-    "bsddb3>=6.2.9,<7",
+    "berkeleydb>=18.1; python_version >= '3.10'",
+    "bsddb3>=6.2.9; python_version < '3.10'",
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7,<10"]
+ai = ["numpy>=1.22", "openai>=1.0"]
+test = ["pytest>=7,<10", "numpy>=1.22", "openai>=1.0"]
 
 [project.scripts]
 wallet-recover = "wallet_recover.cli:main"

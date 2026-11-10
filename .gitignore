@@ -21,4 +21,5 @@ password*
 found_password*
 wallet-backup*
 secrets/
+.wallet-recover-hashcat/
 .DS_Store
