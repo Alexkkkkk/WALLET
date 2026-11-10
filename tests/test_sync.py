@@ -25,7 +25,7 @@ GUI_SOURCE = (ROOT / "wallet_recover" / "gui.py").read_text(encoding="utf-8")
 # Полный контракт CLI: любое добавление/удаление флага обязано попасть сюда.
 CLI_FLAGS = [
     "--version", "--wallet", "--wordlist", "--jobs", "--save", "--print-mkey",
-    "--diagnose", "--plan", "--selftest",
+    "--diagnose", "--plan", "--selftest", "--checkpoint", "--resume", "--deduplicate",
     "--ai-generate", "--memory", "--seed", "--ai-provider", "--ai-model",
     "--ai-ollama-url", "--ai-limit", "--ai-no-rank", "--ai-no-neural",
     "--hashcat-hash", "--hashcat-wordlist", "--hashcat-state-dir",
@@ -48,7 +48,7 @@ def _strip_requirements(text):
 def test_version_has_one_source_and_readme_agrees():
     assert re.search(r'^dynamic\s*=\s*\["version"\]', PYPROJECT, re.M), \
         "pyproject должен брать версию из пакета, а не дублировать её"
-    assert 'version = {attr = "wallet_recover.__version__"}' in PYPROJECT
+    assert 'version = {attr = "wallet_recover.__init__.__version__"}' in PYPROJECT
     assert not re.search(r'^version\s*=\s*"', PYPROJECT, re.M), \
         "статическая версия в pyproject снова разойдётся с пакетом"
     assert wallet_recover.__version__ in README, "README не упоминает текущую версию"

@@ -28,6 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+fast = ["coincurve>=20"]
 ai = ["numpy>=1.22", "openai>=1.0"]
 test = ["pytest>=7,<10", "numpy>=1.22", "openai>=1.0"]
 
@@ -38,7 +39,7 @@ wallet-recover = "wallet_recover.cli:main"
 wallet-recover-gui = "wallet_recover.gui:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "wallet_recover.__version__"}
+version = {attr = "wallet_recover.__init__.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["wallet_recover*"]

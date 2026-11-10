@@ -6,6 +6,8 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from .cli import save_password
+from .errors import WalletError
+from .progress import Progress
 from .plan import wallet_plan
 from .runner import RecoveryEngine, check_wordlist, inspect_wallet
 
@@ -32,6 +34,8 @@ class Application:
         self.words = tk.StringVar()
         self.jobs = tk.StringVar(value=str(min(8, os.cpu_count() or 1)))
         self.authorized = tk.BooleanVar()
+        self.checkpoint = tk.StringVar()
+        self.resume_cpu = tk.BooleanVar()
         self.status = tk.StringVar(value="Готово к работе. Выберите резервную копию кошелька.")
         self.total = None
         frame = ttk.Frame(root, padding=24)
@@ -48,8 +52,17 @@ class Application:
         spin = ttk.Spinbox(frame, from_=1, to=64, width=6, textvariable=self.jobs)
         spin.grid(row=4, column=1, sticky="w")
         self.inputs.append(spin)
-        ttk.Label(frame, text="Legacy BDB / method 0. SQLite-кошельки не поддерживаются.",
-                  style="Hint.TLabel").grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
+        options = ttk.Frame(frame)
+        options.grid(row=5, column=0, columnspan=3, sticky="ew", pady=8)
+        options.columnconfigure(1, weight=1)
+        ttk.Label(options, text="Чекпоинт CPU (необязательно)").grid(row=0, column=0, sticky="w")
+        checkpoint_entry = ttk.Entry(options, textvariable=self.checkpoint)
+        checkpoint_entry.grid(row=0, column=1, sticky="ew", padx=8)
+        checkpoint_btn = ttk.Button(options, text="Путь…", command=self.choose_checkpoint)
+        checkpoint_btn.grid(row=0, column=2)
+        resume_cpu = ttk.Checkbutton(options, text="Продолжить CPU", variable=self.resume_cpu)
+        resume_cpu.grid(row=1, column=0, columnspan=2, sticky="w")
+        self.inputs.extend([checkpoint_entry, checkpoint_btn, resume_cpu])
         consent = ttk.Checkbutton(frame, variable=self.authorized,
             text="Кошелёк мой / есть разрешение владельца. Bitcoin Core закрыт, использую копию.")
         consent.grid(row=6, column=0, columnspan=3, sticky="w", pady=8)
@@ -149,6 +162,12 @@ class Application:
         button.grid(row=row, column=2, padx=(8, 0))
         self.inputs.extend([entry, button])
 
+    def choose_checkpoint(self):
+        path = filedialog.asksaveasfilename(parent=self.root, title="Чекпоинт CPU (JSON)",
+                                          defaultextension=".json", confirmoverwrite=False)
+        if path:
+            self.checkpoint.set(path)
+
     def browse(self, variable):
         path = filedialog.askopenfilename(parent=self.root, title="Выберите локальный файл")
         if path:
@@ -170,6 +189,7 @@ class Application:
         self.stop_btn.configure(state="normal" if value and recovery else "disabled")
         self.save_btn.configure(state="normal" if not value and self.password is not None else "disabled")
         if value:
+            self.bar.configure(mode="indeterminate")
             self.bar.start(12)
         else:
             self.bar.stop()
@@ -218,8 +238,10 @@ class Application:
             messagebox.showerror("Файлы", "Выберите существующие файлы кошелька и словаря.", parent=self.root)
             return
         try:
-            engine = RecoveryEngine(wallet, words, int(self.jobs.get()), self.sink)
-        except ValueError as exc:
+            engine = RecoveryEngine(wallet, words, int(self.jobs.get()), self.sink,
+                                    checkpoint_path=self.checkpoint.get().strip() or None,
+                                    resume=self.resume_cpu.get())
+        except (WalletError, ValueError) as exc:
             messagebox.showerror("Параметры", str(exc), parent=self.root)
             return
         self.password = None
@@ -255,12 +277,17 @@ class Application:
                 if event == "log":
                     self.append(args[0])
                 elif event == "progress":
-                    count, rate = args
+                    count, rate = args[:2]
+                    if self.total:
+                        self.bar.configure(value=count)
+                    eta = args[2] if len(args) > 2 else None
                     if self.total:
                         self.status.set("Проверено: %d из %d (%.1f%%) • %.1f кандидатов/с" %
                                         (count, self.total, 100.0 * count / self.total, rate))
                     else:
                         self.status.set("Проверено: %d • Скорость: %.1f кандидатов/с" % (count, rate))
+                    if eta is not None:
+                        self.status.set(self.status.get() + " • ETA " + Progress._fmt(eta))
                 elif event == "inspection":
                     info = args[0]
                     self.append("Записей mkey: %d; ckey: %d" % (len(info["masters"]), info["keys"]))
@@ -296,6 +323,8 @@ class Application:
                     self.set_busy(False)
                 elif event == "total":
                     self.total = args[0]
+                    self.bar.stop()
+                    self.bar.configure(mode="determinate", maximum=max(1, self.total), value=0)
                 elif event == "wordlist_checked":
                     total, warnings = args
                     for warning in warnings:

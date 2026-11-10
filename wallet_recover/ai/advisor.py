@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Sequence
 
 from ..bdb import load_wallet
-from ..crypto import try_password
+from ..crypto import Decryptor
 
 
 @dataclass
@@ -72,11 +72,12 @@ def diagnose(wallet_path: str | Path) -> WalletDiagnosis:
 def benchmark(wallet_path: str | Path, duration: float = 2.0, jobs: int = 1) -> float:
     """Measure real attempts/sec on the target wallet using dummy candidates."""
     masters, keys = load_wallet(wallet_path)
+    decryptor = Decryptor(masters, keys)
     start = time.monotonic()
     count = 0
     cand = b"__bench_dummy_cand__"
     while time.monotonic() - start < duration:
-        try_password(masters, keys, cand)
+        decryptor.try_password(cand)
         count += 1
     return count / max(time.monotonic() - start, 1e-3)
 
@@ -107,7 +108,7 @@ def strategy_report(diag: WalletDiagnosis, speed_ps: float, cpu_jobs: int = 4) -
         "## Анализ кошелька",
         diag.summary(),
         "",
-        f"**Измеренная скорость:** ~{speed_ps:.1f} паролей/с на одно ядро (~{scaled_speed:.0f} p/s при {cpu_jobs} потоках)",
+        f"**Измеренная скорость:** ~{speed_ps:.1f} паролей/с на одно ядро (модель, не замер: ~{scaled_speed:.0f} p/s при {cpu_jobs} процессах)",
         "",
         "## Рекомендуемые фазы атаки (в порядке убывания вероятности успеха)",
         "",

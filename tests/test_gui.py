@@ -70,6 +70,7 @@ def test_new_backend_controls_exist(gui):
     assert gui.hashcat_btn["text"] == "Запустить Hashcat"
     assert gui.provider.get() == "offline"
     assert gui.state_dir.get() == ".wallet-recover-hashcat"
+    assert gui.checkpoint.get() == "" and not gui.resume_cpu.get()
 
 
 def _settle(gui, timeout=5.0):
@@ -108,6 +109,30 @@ def test_progress_shows_total_and_percent(gui):
     gui.poll()
     assert "5 из 10" in gui.status.get()
     assert "50.0%" in gui.status.get()
+
+
+def test_progress_v03_eta_and_determinate_bar(gui):
+    gui.sink("total", 10)
+    gui.sink("progress", 5, 2.5, 2.0, 4.0)
+    gui.poll()
+    assert "ETA 2s" in gui.status.get()
+    assert str(gui.bar["mode"]) == "determinate"
+    assert gui.bar["value"] == 5
+
+
+def test_resume_requires_checkpoint_in_gui(gui, tmp_path, monkeypatch):
+    from test_runner import make_wallet
+    wallet, words = tmp_path / "wallet.dat", tmp_path / "words.txt"
+    make_wallet(wallet)
+    words.write_bytes(b"wrong\n")
+    gui.wallet.set(str(wallet))
+    gui.words.set(str(words))
+    gui.authorized.set(True)
+    gui.resume_cpu.set(True)
+    errors = []
+    monkeypatch.setattr("wallet_recover.gui.messagebox.showerror", lambda *a, **k: errors.append(a))
+    gui.start()
+    assert errors and gui.engine is None and not gui.busy
 
 
 def test_generate_ai_requires_input(gui, monkeypatch):
