@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wallet-recover-local"
-version = "0.2.0"
+# Version lives in wallet_recover/__init__.py only (see [tool.setuptools.dynamic]).
+dynamic = ["version"]
 description = "AI-powered offline/online password recovery for authorized legacy Bitcoin Core wallets"
 readme = "README.md"
 license = {text = "MIT"}
@@ -35,6 +36,9 @@ wallet-recover = "wallet_recover.cli:main"
 
 [project.gui-scripts]
 wallet-recover-gui = "wallet_recover.gui:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "wallet_recover.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["wallet_recover*"]

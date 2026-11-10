@@ -6,6 +6,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from .cli import save_password
+from .plan import wallet_plan
 from .runner import RecoveryEngine, check_wordlist, inspect_wallet
 
 
@@ -57,6 +58,9 @@ class Application:
         actions.grid(row=7, column=0, columnspan=3, sticky="ew", pady=12)
         self.inspect_btn = ttk.Button(actions, text="Проверить кошелёк", command=self.inspect)
         self.inspect_btn.pack(side="left")
+        self.plan_btn = ttk.Button(actions, text="AI-план восстановления", command=self.make_plan)
+        self.plan_btn.pack(side="left", padx=8)
+        self.inputs.append(self.plan_btn)
         self.words_btn = ttk.Button(actions, text="Проверить словарь", command=self.check_words)
         self.words_btn.pack(side="left", padx=8)
         self.inputs.append(self.words_btn)
@@ -184,6 +188,27 @@ class Application:
                 self.sink("failed", str(exc))
         threading.Thread(target=task, daemon=True).start()
 
+    def make_plan(self):
+        """Copilot: диагностика + бенчмарк + фазы атаки из общего модуля plan."""
+        path = self.wallet.get().strip()
+        if not path:
+            messagebox.showerror("Нет файла", "Выберите резервную копию wallet.dat.", parent=self.root)
+            return
+        try:
+            jobs = int(self.jobs.get())
+        except ValueError:
+            messagebox.showerror("Процессы", "Число процессов — целое число.", parent=self.root)
+            return
+        self.set_busy(True)
+        self.status.set("AI-диагностика и измерение скорости…")
+        def task():
+            try:
+                plan = wallet_plan(path, jobs=jobs)
+                self.sink("plan_done", plan.summary(), plan.report, plan.speed_ps)
+            except Exception as exc:
+                self.sink("failed", str(exc))
+        threading.Thread(target=task, daemon=True).start()
+
     def start(self):
         if not self.authorized.get():
             messagebox.showwarning("Подтверждение", "Подтвердите право доступа и использование закрытой копии.", parent=self.root)
@@ -244,6 +269,16 @@ class Application:
                     for issue in info["problems"]:
                         self.append(issue)
                     self.status.set("Кошелёк пригоден для проверки" if info["usable"] else "Кошелёк не поддерживается или неполный")
+                    self.set_busy(False)
+                elif event == "plan_done":
+                    summary, report, speed = args
+                    for line in (summary.splitlines() + ["Измеренная скорость: %.1f паролей/с (1 ядро)" % speed,
+                                                          "Полный план сохранён в журнале ниже."]):
+                        self.append(line)
+                    self.append("")
+                    for line in report.splitlines():
+                        self.append(line)
+                    self.status.set("AI-план готов: %.1f паролей/с на ядро" % speed)
                     self.set_busy(False)
                 elif event == "found":
                     self.password, count, elapsed = args
