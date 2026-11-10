@@ -1,5 +1,9 @@
 pycryptodome>=3.20
+# cryptography: Windows + Python 3.8 needs the 42.0.7 pin, everything else 42..50
 cryptography==42.0.7; python_version < '3.9' and sys_platform == 'win32'
 cryptography>=42,<51; python_version >= '3.9' or sys_platform != 'win32'
-berkeleydb>=18.1; python_version >= '3.10'
+# berkeleydb >= 18.1.16 dropped support for CPython 3.10 (its build fails),
+# so 3.10 is pinned below that; 3.11+ builds the current release fine.
+berkeleydb>=18.1,<18.1.16; python_version == '3.10'
+berkeleydb>=18.1; python_version >= '3.11'
 bsddb3>=6.2.9; python_version < '3.10'
