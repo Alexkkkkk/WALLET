@@ -65,7 +65,7 @@ jobs:
         shell: pwsh
         run: |
           conda run -n wallet-build python -m PyInstaller `
-            --noconfirm --clean --onefile --windowed `
+            --noconfirm --clean --onefile --console `
             --name WALLET `
             --hidden-import=Crypto `
             --hidden-import=Crypto.Cipher `
