@@ -68,6 +68,7 @@ def test_new_backend_controls_exist(gui):
     assert gui.quick_btn["text"] == "Быстрый запуск…"
     assert gui.words_btn["text"] == "Проверить словарь"
     assert gui.ai_btn["text"] == "Создать AI-словарь…"
+    assert gui.personal_btn["text"] == "Создать персональный словарь"
     assert gui.hashcat_btn["text"] == "Запустить Hashcat"
     assert gui.provider.get() == "offline"
     assert gui.state_dir.get() == ".wallet-recover-hashcat"
