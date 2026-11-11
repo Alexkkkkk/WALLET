@@ -49,6 +49,10 @@ jobs:
           conda run -n wallet-build python -c "from Crypto.Cipher import AES; print('pycryptodome import ok')"
           conda run -n wallet-build python -m pip install --upgrade --force-reinstall "cryptography>=42,<51"
           conda run -n wallet-build python -c "from cryptography.hazmat.primitives.asymmetric import ec; print('cryptography import ok')"
+          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "numpy>=1.22"
+          conda run -n wallet-build python -c "import numpy; print('numpy import ok')"
+          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "openai>=1.0"
+          conda run -n wallet-build python -c "import openai; print('openai import ok')"
           conda run -n wallet-build python -m pip install pyinstaller
 
       - name: Self-test and package test
