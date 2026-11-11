@@ -65,6 +65,7 @@ def test_save_exact_bytes_and_refuse_overwrite(gui, tmp_path, monkeypatch):
 
 
 def test_new_backend_controls_exist(gui):
+    assert gui.quick_btn["text"] == "Быстрый запуск…"
     assert gui.words_btn["text"] == "Проверить словарь"
     assert gui.ai_btn["text"] == "Создать AI-словарь…"
     assert gui.hashcat_btn["text"] == "Запустить Hashcat"

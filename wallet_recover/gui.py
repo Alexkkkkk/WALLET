@@ -18,6 +18,7 @@ class Application:
         self.events = queue.Queue()
         self.engine = None
         self.password = None
+        self.auto_save_path = None
         self.busy = False
         self.closing = False
         self.root.title("WALLET — локальное восстановление")
@@ -69,6 +70,9 @@ class Application:
         self.inputs.append(consent)
         actions = ttk.Frame(frame)
         actions.grid(row=7, column=0, columnspan=3, sticky="ew", pady=12)
+        self.quick_btn = ttk.Button(actions, text="Быстрый запуск…", command=self.quick_start)
+        self.quick_btn.pack(side="left")
+        self.inputs.append(self.quick_btn)
         self.inspect_btn = ttk.Button(actions, text="Проверить кошелёк", command=self.inspect)
         self.inspect_btn.pack(side="left")
         self.plan_btn = ttk.Button(actions, text="AI-план восстановления", command=self.make_plan)
@@ -178,6 +182,33 @@ class Application:
         self.log.insert("end", text + "\n")
         self.log.see("end")
         self.log.configure(state="disabled")
+
+    def quick_start(self):
+        """Run the safe one-window flow with an explicit candidate list."""
+        wallet = filedialog.askopenfilename(
+            parent=self.root, title="Выберите закрытую копию wallet.dat",
+            filetypes=(("Wallet backup", "*.dat"), ("All files", "*.*")))
+        if not wallet:
+            return
+        words = filedialog.askopenfilename(
+            parent=self.root, title="Выберите словарь возможных паролей",
+            filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+        if not words:
+            messagebox.showinfo(
+                "Нужен словарь",
+                "Одного wallet.dat недостаточно для восстановления неизвестного пароля. "
+                "Подготовьте список возможных паролей или создайте его из своих воспоминаний.",
+                parent=self.root)
+            return
+        self.wallet.set(wallet)
+        self.words.set(words)
+        self.authorized.set(True)
+        self.resume_cpu.set(False)
+        self.checkpoint.set(wallet + ".recovery.json")
+        self.auto_save_path = wallet + ".recovered-password.bin"
+        self.append("Быстрый запуск: исходник не изменяется; результат будет создан отдельно:")
+        self.append(self.auto_save_path)
+        self.start()
 
     def sink(self, event, *args):
         self.events.put((event, args))
@@ -310,7 +341,18 @@ class Application:
                 elif event == "found":
                     self.password, count, elapsed = args
                     self.status.set("Пароль подтверждён по публичному ключу. Проверено: %d; %.1f с." % (count, elapsed))
-                    self.append("Пароль найден. Сохраните результат в защищённое локальное хранилище.")
+                    if self.auto_save_path:
+                        try:
+                            save_password(self.auto_save_path, self.password)
+                        except OSError as exc:
+                            self.append("Пароль найден, но автосохранение не удалось: " + str(exc))
+                            self.append("Используйте кнопку «Сохранить пароль…».")
+                        else:
+                            self.append("Пароль найден и сохранён в новый файл: " + self.auto_save_path)
+                            self.password = None
+                            self.auto_save_path = None
+                    else:
+                        self.append("Пароль найден. Сохраните результат в защищённое локальное хранилище.")
                     self.set_busy(False)
                 elif event == "finished":
                     count, elapsed, stopped = args
