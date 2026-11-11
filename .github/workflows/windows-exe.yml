@@ -1,15 +1,11 @@
 name: Windows EXE
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -17,8 +13,11 @@ env:
 
 jobs:
   build-windows:
-    name: Windows EXE (Python ${{ matrix.python-version }})
-    runs-on: windows-latest
+    name: Windows 10/11 x64 (Python ${{ matrix.python-version }})
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
     strategy:
       fail-fast: false
       matrix:
@@ -38,90 +37,83 @@ jobs:
           channel-priority: strict
 
       - name: Install native and Python dependencies
-        shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           conda install -n wallet-build -y -c conda-forge berkeley-db
           $prefix = conda run -n wallet-build python -c "import sys; print(sys.prefix)"
           $env:BERKELEYDB_DIR = $prefix.Trim()
           conda run -n wallet-build python -m pip install --upgrade pip setuptools wheel
-          conda run -n wallet-build python -m pip install -e ".[ai,test]"
-          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "pycryptodome>=3.20"
-          conda run -n wallet-build python -c "from Crypto.Cipher import AES; print('pycryptodome import ok')"
-          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "cryptography>=42,<51"
-          conda run -n wallet-build python -c "from cryptography.hazmat.primitives.asymmetric import ec; print('cryptography import ok')"
-          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "numpy>=1.22"
-          conda run -n wallet-build python -c "import numpy; print('numpy import ok')"
-          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "openai>=1.0"
-          conda run -n wallet-build python -c "import openai; print('openai import ok')"
-          conda run -n wallet-build python -m pip install pyinstaller
+          conda run -n wallet-build python -m pip install -e ".[ai,test]" pyinstaller
+          conda run -n wallet-build python -c "from Crypto.Cipher import AES; from cryptography.hazmat.primitives.asymmetric import ec; import berkeleydb.db, numpy, openai, tkinter; print('All runtime imports OK')"
 
       - name: Self-test and package test
-        shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           conda run -n wallet-build python -m wallet_recover --selftest
-          conda run -n wallet-build python -m compileall -q wallet_recover wallet_recover.py
+          conda run -n wallet-build python -m compileall -q wallet_recover wallet_recover.py scripts
 
       - name: Build one-file GUI executable
-        shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           conda run -n wallet-build python -m PyInstaller `
             --noconfirm --clean --onefile --console `
             --name WALLET `
-            --hidden-import=Crypto `
-            --hidden-import=Crypto.Cipher `
-            --hidden-import=Crypto.Cipher.AES `
-            --hidden-import=cryptography `
-            --hidden-import=cryptography.hazmat `
-            --hidden-import=cryptography.hazmat.primitives.asymmetric.ec `
-            --hidden-import=cryptography.hazmat.backends.openssl `
-            --hidden-import=berkeleydb `
-            --hidden-import=berkeleydb.db `
-            --hidden-import=wallet_recover.personal_wordlist `
+            --collect-all=wallet_recover `
             --collect-all=berkeleydb `
-            --collect-submodules=Crypto `
-            --collect-data=Crypto `
-            --collect-submodules=cryptography `
-            --collect-data=cryptography `
+            --collect-all=Crypto `
+            --collect-all=cryptography `
             --collect-all=numpy `
             --collect-all=openai `
             wallet_recover.py
           if (-not (Test-Path dist/WALLET.exe)) { throw "dist/WALLET.exe was not created" }
 
-      - name: Verify EXE
-        shell: pwsh
+      - name: Verify standalone EXE outside source directory
         run: |
-          & .\dist\WALLET.exe --selftest
-          if ($LASTEXITCODE -ne 0) { throw "WALLET.exe self-test failed" }
-          $candidates = Join-Path $env:RUNNER_TEMP "wallet-candidates.txt"
-          & .\dist\WALLET.exe --ai-generate $candidates --memory "build-check" --ai-provider offline --ai-limit 20
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $candidates)) { throw "Bundled offline AI dependencies failed" }
+          $PSNativeCommandUseErrorActionPreference = $true
+          conda run -n wallet-build python scripts/verify_windows_bundle.py dist/WALLET.exe
 
       - name: Create portable archive
-        shell: pwsh
+        id: archive
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = (conda run -n wallet-build python -c "from wallet_recover import __version__; print(__version__)").Trim()
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Release tag $env:GITHUB_REF_NAME does not match package v$version"
+          }
+          $asset = "WALLET-v$version-windows10-11-x64"
+          if ("${{ matrix.python-version }}" -ne "3.12") { $asset += "-py${{ matrix.python-version }}" }
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item dist/WALLET.exe release/WALLET.exe
           Copy-Item README.md, LICENSE, examples release/ -Recurse
           @"
-          WALLET Windows portable build (all Python runtime dependencies bundled)
+          WALLET v$version — Windows 10 / 11 x64 portable
+          NOT FOR WINDOWS 7. This build uses Python ${{ matrix.python-version }}.
 
-          Run WALLET.exe for the graphical interface. Python, Berkeley DB,
-          cryptography, AI modules and other runtime packages are bundled.
-          Use only with your own wallet backup or with the owner's permission.
-          Keep wallet backups, wordlists and recovered passwords private.
+          Распакуйте ZIP и запустите WALLET.exe для открытия русского интерфейса.
+          Python и pip устанавливать не нужно. Python, Tcl/Tk, Berkeley DB,
+          cryptography, NumPy и OpenAI-клиент включены в EXE.
+          Ollama, его модели и Hashcat — отдельные необязательные программы.
+
+          Проверки EXE: версия, self-test, офлайн AI, чтение синтетической BDB,
+          восстановление синтетического пароля с двумя процессами и запуск GUI.
+          CI работает на Windows Server 2022, не на Windows 7 или Windows 10.
+          Проверенный EXE для Windows 7 пока не опубликован.
+
+          Используйте только копию своего кошелька или с разрешения владельца.
+          Не публикуйте кошелёк, словари и найденные пароли.
           "@ | Set-Content -Encoding UTF8 release/README-WINDOWS.txt
-          Compress-Archive -Path release/* -DestinationPath "WALLET-windows-py${{ matrix.python-version }}.zip" -Force
+          conda run -n wallet-build python -m pip freeze | Set-Content -Encoding UTF8 release/BUILD-DEPENDENCIES.txt
+          Compress-Archive -Path release/* -DestinationPath "$asset.zip" -Force
+          $hash = (Get-FileHash "$asset.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $asset.zip" | Set-Content -Encoding ascii "$asset.zip.sha256"
+          "asset=$asset" >> $env:GITHUB_OUTPUT
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WALLET-windows-py${{ matrix.python-version }}
-          path: WALLET-windows-py${{ matrix.python-version }}.zip
+          name: WALLET-windows10-11-x64-py${{ matrix.python-version }}
+          path: |
+            ${{ steps.archive.outputs.asset }}.zip
+            ${{ steps.archive.outputs.asset }}.zip.sha256
           if-no-files-found: error
-
-      - name: Attach release asset
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.python-version == '3.12'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: WALLET-windows-py${{ matrix.python-version }}.zip
-          fail_on_unmatched_files: true

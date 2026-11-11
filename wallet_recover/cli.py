@@ -1,9 +1,11 @@
 """Offline wordlist runner; no network access or telemetry."""
 import argparse
+import multiprocessing
 import os
 from pathlib import Path
 import sys
 from . import __version__
+from ._console import configure_console_streams
 from .bdb import load_wallet
 from .crypto import Decryptor
 
@@ -70,6 +72,13 @@ def build_parser():
     return p
 
 def main(argv=None):
+    # PyInstaller's override must intercept spawned workers before GUI dispatch
+    # or argparse sees its internal --multiprocessing-fork arguments.
+    multiprocessing.freeze_support()
+    configure_console_streams()
+    if getattr(sys, "frozen", False) and argv is None and not sys.argv[1:]:
+        from .gui import main as gui_main
+        return gui_main()
     p = build_parser()
     args = p.parse_args(argv)
     try:
