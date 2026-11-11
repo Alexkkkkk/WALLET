@@ -4,6 +4,14 @@
 
 **Статус:** начальная реализация. Юнит-тесты и сквозной тест используют синтетические записи и временный BDB-файл. Совместимость с реальным кошельком пользователя пока не проверена. Программа не гарантирует восстановление пароля и не предназначена для хранения средств.
 
+## Скачать для Windows
+
+**Windows 10/11 x64:** откройте [актуальный релиз](https://github.com/Alexkkkkk/WALLET/releases/latest) и скачайте основной Windows ZIP из Assets. Для `v0.4.2` это [`WALLET-v0.4.2-windows10-11-x64.zip`](https://github.com/Alexkkkkk/WALLET/releases/download/v0.4.2/WALLET-v0.4.2-windows10-11-x64.zip) с Python 3.12 внутри; файл `.zip.sha256` в тех же Assets позволяет проверить целостность архива. Распакуйте архив целиком и запустите `WALLET.exe`; отдельно устанавливать Python и библиотеки не нужно. Если ZIP ещё не опубликован, дождитесь завершения сборки, а не скачивайте исходники вместо приложения.
+
+**Windows 7 SP1 x64:** проверенного готового EXE нет. Современный ZIP и старые релизы не являются Windows 7-сборками. Экспериментальная legacy-сборка требует Python 3.8.10, закреплённых совместимых нативных зависимостей и реальных испытаний на Windows 7.
+
+Файлы `.whl`, `.tar.gz` и ссылки GitHub «Source code» — не самостоятельное Windows-приложение. Метка `py3-none-any` у wheel не подтверждает совместимость приложения и его нативных зависимостей со всеми ОС. Подробности: [Windows-релизы и границы проверок](docs/windows-releases.md).
+
 ## Возможности
 
 - Оконный интерфейс: выбор копии кошелька и словаря, диагностика, число процессов, запуск/остановка, счётчик и скорость, журнал без паролей, сохранение результата только по отдельной команде.
@@ -88,17 +96,17 @@ sudo apt-get update
 sudo apt-get install -y libdb-dev libdb++-dev python3-dev python3-venv build-essential
 python3 -m venv .venv
 source .venv/bin/activate
-pip install https://github.com/Alexkkkkk/WALLET/releases/download/v0.3.0/wallet_recover_local-0.3.0-py3-none-any.whl
+pip install https://github.com/Alexkkkkk/WALLET/releases/download/v0.4.2/wallet_recover_local-0.4.2-py3-none-any.whl
 python -m wallet_recover --selftest
 ```
 
-Готовые пакеты собраны CI и приложены к релизу [v0.3.0](https://github.com/Alexkkkkk/WALLET/releases/tag/v0.3.0): [wheel](https://github.com/Alexkkkkk/WALLET/releases/download/v0.3.0/wallet_recover_local-0.3.0-py3-none-any.whl) и [sdist](https://github.com/Alexkkkkk/WALLET/releases/download/v0.3.0/wallet_recover_local-0.3.0.tar.gz). Актуальный релиз всегда доступен по ссылке [releases/latest](https://github.com/Alexkkkkk/WALLET/releases/latest) — при выходе новой версии замените тег в URL (например, `v0.3.0`).
+Python-пакеты для релиза [v0.4.2](https://github.com/Alexkkkkk/WALLET/releases/tag/v0.4.2): [wheel версии 0.4.2](https://github.com/Alexkkkkk/WALLET/releases/download/v0.4.2/wallet_recover_local-0.4.2-py3-none-any.whl) и [sdist версии 0.4.2](https://github.com/Alexkkkkk/WALLET/releases/download/v0.4.2/wallet_recover_local-0.4.2.tar.gz). Ссылки работают после публикации соответствующих Assets. Актуальный релиз доступен по ссылке [releases/latest](https://github.com/Alexkkkkk/WALLET/releases/latest); при установке другой версии должны совпадать тег и версия файла. Эти пакеты не заменяют portable Windows ZIP.
 
-Зависимости: `pycryptodome` (AES), `cryptography` (secp256k1), `berkeleydb` на Python 3.10+ или `bsddb3` на старых Python; `.[ai]` устанавливает NumPy для AI-модулей. Установка пакетов и скачивание локальной модели Ollama требуют интернета; при офлайн-поиске и выборе Ollama приложение не отправляет кошелёк, хеш или словарь в сеть. Windows/macOS не тестировались. Для GUI на Ubuntu дополнительно нужны `python3-tk`; для безэкранных GUI-тестов — `xvfb`.
+Зависимости: `pycryptodome` (AES), `cryptography` (secp256k1), `berkeleydb` на Python 3.10+ или `bsddb3` на старых Python; `.[ai]` устанавливает NumPy для AI-модулей. Установка пакетов и скачивание локальной модели Ollama требуют интернета; при офлайн-поиске и выборе Ollama приложение не отправляет кошелёк, хеш или словарь в сеть. Windows EXE проверяется на GitHub-hosted Windows Server 2022; это не испытание на реальной Windows 10 или Windows 7. macOS не тестировалась. Для GUI на Ubuntu дополнительно нужны `python3-tk`; для безэкранных GUI-тестов — `xvfb`.
 
-## Оконный интерфейс и Windows 7 / 10
+## Оконный интерфейс и совместимость Windows
 
-Запуск из каталога проекта после установки зависимостей:
+В portable ZIP для Windows 10/11 x64 запускайте `WALLET.exe`. При работе из исходников запуск из каталога проекта после установки зависимостей:
 
 ```bat
 python -m wallet_recover.gui
@@ -109,25 +117,24 @@ python -m wallet_recover.gui
 1. Закройте Bitcoin Core и сделайте отдельную резервную копию.
 2. Выберите копию `wallet.dat` и нажмите «Проверить кошелёк».
 3. Выберите словарь с вашими кандидатами: одна строка = один пароль, без изменения пробелов и кодировки.
-4. Подтвердите разрешение владельца, задайте число процессов и начните проверку. «Остановить» завершает фоновые процессы; сохранения позиции и возобновления пока нет.
+4. Подтвердите разрешение владельца, задайте число процессов и начните проверку. «Остановить» завершает фоновые процессы. Для сохранения позиции и продолжения CPU-поиска используйте чекпоинт и «Продолжить CPU», описанные ниже.
 5. При успехе нажмите «Сохранить пароль…». Файл содержит незашифрованные точные байты, без перевода строки. Существующие файлы не перезаписываются. На Windows отдельно проверьте права NTFS: режим POSIX 0600 не заменяет ACL.
 
-### Статус совместимости — без гарантии запуска
+### Windows 10/11 x64: современная сборка
 
-| Цель | Подготовка | Что ещё требуется |
-| --- | --- | --- |
-| Windows 10 | Python 3.11 с Tcl/Tk; стандартное окружение и зависимости | Нативный драйвер Berkeley DB и проверка на Windows |
-| Windows 7 SP1 | Экспериментально: Python 3.8.10 с Tcl/Tk; для Python 3.8 на Windows закреплён `cryptography==42.0.7` | Совместимый нативный драйвер Berkeley DB и проверка именно на Windows 7 |
+Workflow `.github/workflows/build.yml` вызывает переиспользуемый `.github/workflows/windows-exe.yml`; его также можно запустить вручную. Оба варианта portable `WALLET.exe`, с Python 3.11 и 3.12, собираются и проверяются на `windows-2022` — GitHub-hosted Windows Server 2022. Основной релизный ZIP использует Python 3.12 и для `v0.4.2` называется `WALLET-v0.4.2-windows10-11-x64.zip`; рядом публикуется `.zip.sha256`. Вариант с Python 3.11 сохраняется только в Actions для проверки совместимости, не прикладывается к релизу и не является Windows 7-сборкой.
 
-В этой среде **нет Windows**. Проверены Linux/Python 3.12, GUI через Xvfb, синтетические BDB-кошельки и синтаксис модулей по грамматике Python 3.8. Проверка синтаксиса не является тестом исполнения на Python 3.8 или Windows. Готового и проверенного `.exe` пока нет.
+В EXE включаются Python runtime, Tcl/Tk, Berkeley DB, `pycryptodome`, `cryptography`, NumPy, OpenAI-клиент и внутренние модули приложения. Нативная Berkeley DB 4.8.30 собирается статически по [закреплённому рецепту Microsoft vcpkg](https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/berkeleydb); драйвер `berkeleydb==18.1.15` собирается из исходников с проверкой SHA-256. Лицензии BDB и драйвера включены в ZIP. Standalone EXE проверяется вне каталога исходников и без сборочных DLL-путей в PATH: версия, `--selftest`, офлайн AI при строгой кодировке `cp1252`, чтение синтетического BDB-кошелька и восстановление пароля с двумя процессами, а также появление видимого GUI при запуске без аргументов. Для пользователя portable ZIP отдельная установка BDB не требуется. При установке из исходников нативные зависимости всё равно нужно подготовить отдельно.
 
-Workflow `.github/workflows/windows-exe.yml` автоматически собирает portable `WALLET.exe` на GitHub Actions для Python 3.11 и 3.12. Сборка устанавливает Berkeley DB через Conda, собирает нативный Python-модуль, запускает `--selftest`, проверяет созданный EXE и сохраняет ZIP как Actions artifact. При создании тега `v*` ZIP для Python 3.12 дополнительно прикладывается к GitHub Release.
+Единый job публикации в `build.yml` требует успешных обеих Windows-сборок и сборки/проверки Python-пакетов; тег `v*` должен совпадать с версией пакета. Успешные проверки подтверждают работу на Windows Server 2022, а не на реальной Windows 10 или Windows 7. Целевой профиль ZIP — Windows 10/11 x64; отдельные испытания на пользовательском компьютере и реальном кошельке не заменяются CI. Документация [Python 3.11](https://docs.python.org/3.11/using/windows.html) и [Python 3.12](https://docs.python.org/3.12/using/windows.html) указывает Windows 8.1 и новее для интерпретатора, но это не гарантия поддержки этих ОС всей упаковкой WALLET.
 
-GitHub-hosted runners не предоставляют Windows 7. Поэтому этот workflow проверяет современные Windows runners (совместимый профиль Windows 10/11), а отдельную проверку Windows 7 нужно выполнять на self-hosted runner с Python 3.8.10 и соответствующей 64-битной Berkeley DB. Непроверенный EXE нельзя считать совместимым с Windows 7.
+### Windows 7 SP1 x64: только экспериментальный legacy-профиль
 
-**Нерешённый блокер упаковки:** проверка PyPI не обнаружила Windows wheels для `bsddb3`/`berkeleydb` под целевые CPython 3.8 и 3.11 x64. Поэтому `pip install -r requirements.txt` на чистой Windows может остановиться на сборке BDB; одной установки Python недостаточно. Нужна собственная сборка драйвера с совместимой нативной Berkeley DB и компилятором соответствующей архитектуры, либо проверенный бинарный пакет из доверенного источника. Проект не скачивает случайные DLL. Ошибка драйвера показывается в журнале; открытие самого окна драйвера не требует. WSL не является решением для Windows 7.
+**Проверенного готового Windows 7 EXE нет.** Старые `v0.4.0`/`v0.4.1` и современные ZIP нельзя считать совместимыми с Windows 7. Для legacy-сборки нужен официальный [Python 3.8.10 x64](https://www.python.org/downloads/release/python-3810/) с Tcl/Tk — последний выпуск ветки 3.8 с бинарными установщиками; более поздние выпуски 3.8 были только исходниками. Python 3.11/3.12 не подходят для этой цели.
 
-Python 3.8 уже не получает исправлений безопасности. Старый `cryptography` выбран только как экспериментальная совместимая ветка, а не как безопасная актуальная рекомендация. Для реальных средств предпочтительна поддерживаемая ОС. Источники: [Python 3.8.10](https://www.python.org/downloads/release/python-3810/), [changelog cryptography, 42.0.7](https://cryptography.io/en/latest/changelog/).
+Нужны закреплённые совместимые зависимости, включая нативную Berkeley DB, драйвер `bsddb3` и инструменты упаковки. В проекте для Windows/Python 3.8 указан `cryptography==42.0.7`, но этот pin и `pip install -r requirements.txt` сами по себе не создают проверенную Windows 7-сборку. Случайные DLL проект не скачивает. Открытие окна без ошибки не доказывает работоспособность BDB.
+
+Отдельного workflow для Windows 7 нет. Legacy EXE необходимо испытать именно на Windows 7 SP1 x64, на отдельной машине или VM: GUI, самопроверку, офлайн AI и сквозной тест на синтетическом BDB-кошельке. Проверка грамматики Python 3.8, современный hosted runner или ручной запуск современного workflow не заменяют такой тест. Python 3.8 [не получает обновлений с 7 октября 2024 года](https://peps.python.org/pep-0569/); старые зависимости здесь — эксперимент, а не безопасная актуальная рекомендация. Для реальных средств предпочтительна поддерживаемая ОС. Подробнее: [Windows-релизы](docs/windows-releases.md).
 
 ### Проверки интерфейса
 

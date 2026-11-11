@@ -5,7 +5,7 @@
 ``--version``, а тест ``tests/test_sync.py`` сверяет его с README.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.2"
 
 __all__ = ["__version__", "Decryptor", "derive_key_iv", "decrypt_cbc",
            "public_key", "try_password", "WalletError", "KDFError", "DecryptError",
