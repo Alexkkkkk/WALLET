@@ -85,8 +85,10 @@ def _stamp(path):
 class RecoveryEngine:
     """One-shot engine with opt-in checkpoints, no implicit output files.
 
-    Events: total(n), log(message), progress(done, rate, eta, elapsed),
+    Events: stage(message), total(n), log(message), progress(done, rate, eta, elapsed),
     found(password, done, elapsed), finished(done, elapsed, stopped), failed(message).
+    Preparation progress has rate=0 and eta=inf: no candidates were checked yet.
+    Stages and checkpoint logs contain no candidate bytes or fingerprints.
     completed counts actual checks plus the previously committed prefix.
     Checkpoint consumed is conservative and may be smaller than completed.
     """
@@ -138,11 +140,15 @@ class RecoveryEngine:
 
     def _prepare(self):
         self._input_stamps = (_stamp(self.wallet), _stamp(self.wordlist))
+        self._emit("stage", "Вычисление полного отпечатка кошелька")
         self._wallet_hash = fingerprint(self.wallet)
+        self._emit("stage", "Вычисление полного отпечатка словаря")
         self._wordlist_hash = fingerprint(self.wordlist)
+        self._emit("stage", "Подсчёт строк словаря")
         self._total = count(self.wordlist)
         self._check_inputs()
         if self.resume:
+            self._emit("stage", "Загрузка и проверка контрольной точки")
             cp = Checkpoint.load(self.checkpoint_path)
             if (cp.wordlist != str(Path(self.wordlist).resolve())
                     or cp.wallet_fingerprint != self._wallet_hash
@@ -151,6 +157,7 @@ class RecoveryEngine:
                     or cp.total != self._total):
                 raise CheckpointError("Wallet or wordlist differs from the checkpoint")
             # Validate line and byte counters together, not just an arbitrary seek.
+            self._emit("stage", "Проверка точного смещения словаря для продолжения")
             offset = 0
             with open(self.wordlist, "rb") as f:
                 for _ in range(cp.consumed):
@@ -165,6 +172,8 @@ class RecoveryEngine:
             self._emit("log", "Продолжение с подтверждённой строки %d" % cp.consumed)
         elif self.checkpoint_path and os.path.lexists(self.checkpoint_path):
             raise CheckpointError("Checkpoint exists; use resume or choose a NEW path")
+        elif self.checkpoint_path:
+            self._emit("stage", "Подготовка новой контрольной точки")
         self._emit("total", self._total)
 
     def _check_inputs(self):
@@ -174,6 +183,7 @@ class RecoveryEngine:
     def _save_checkpoint(self, finished=False):
         if not self.checkpoint_path:
             return
+        self._emit("stage", "Сохранение подтверждённого прогресса в контрольную точку")
         self._check_inputs()
         active = max(time.monotonic() - self._started, 0.001)
         Checkpoint(
@@ -186,6 +196,8 @@ class RecoveryEngine:
             rate_ps=(self.completed - self._baseline) / active,
             finished=finished, total=self._total,
         ).save(self.checkpoint_path)
+        self._emit("log", "Контрольная точка сохранена: строк %d, смещение %d байт" %
+                   (self._frontier.consumed, self._frontier.offset))
 
     def _run(self):
         pool = stream = None
@@ -195,7 +207,9 @@ class RecoveryEngine:
                 self._emit("finished", 0, 0.0, True)
                 return
             self._prepare()
+            self._emit("stage", "Чтение кошелька Berkeley DB (BDB)")
             masters, keys = load_wallet(self.wallet)
+            self._emit("stage", "Проверка параметров шифрования кошелька")
             Decryptor(masters, keys)  # validate in parent: no respawning failing initializers
             self._check_inputs()
             self._baseline = self.completed
@@ -204,8 +218,14 @@ class RecoveryEngine:
             if self._frontier.consumed == self._total:
                 self._emit("finished", self.completed, self._previous_elapsed, False)
                 return
+            if self.stopped():
+                self.elapsed = self._previous_elapsed + time.monotonic() - self._started
+                self._emit("finished", self.completed, self.elapsed, True)
+                return
+            self._emit("stage", "Запуск рабочих процессов: %d" % self.jobs)
             pool = mp.get_context("spawn").Pool(self.jobs, _init_worker, (masters, keys))
             self._emit("log", "Запущено процессов: %d" % self.jobs)
+            self._emit("stage", "Проверка кандидатов")
             stream = iter_offsets(self.wordlist, self._frontier.offset)
             pending = {}
             sequence, batch_size = 0, _BATCH_MIN
@@ -256,6 +276,8 @@ class RecoveryEngine:
                     batch_size = max(_BATCH_MIN, min(_BATCH_MAX, int(rate / self.jobs * 0.1)))
                 if now - last_save >= _CHECKPOINT_SECONDS:
                     self._save_checkpoint()
+                    if self.checkpoint_path:
+                        self._emit("stage", "Проверка кандидатов")
                     last_save = now
                 if exhausted and not pending:
                     break
