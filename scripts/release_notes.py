@@ -29,7 +29,7 @@ def release_notes(version):
 ## Проверки и состав
 
 Версия программы, пакета и тега: **{tag}**. В portable EXE включены Python,
-Tcl/Tk, Berkeley DB, pycryptodome, cryptography, NumPy, OpenAI-клиент и модули
+Tcl/Tk, статическая Berkeley DB 4.8.30, pycryptodome, cryptography, NumPy, OpenAI-клиент и модули
 приложения. Ollama, его модели и Hashcat устанавливаются отдельно при необходимости.
 Основной поиск и AI-провайдер `offline` не используют сеть.
 
@@ -37,7 +37,7 @@ Tcl/Tk, Berkeley DB, pycryptodome, cryptography, NumPy, OpenAI-клиент и �
 Windows/Python 3.11 и 3.12. Проверки готового EXE: `--version`, `--selftest`,
 офлайн AI при ограниченной кодировке консоли, чтение синтетической Berkeley DB,
 восстановление синтетического пароля с двумя процессами и видимое окно GUI.
-EXE запускается вне исходников и без DLL-путей Conda. Windows CI выполняется
+EXE запускается вне исходников и без сборочных DLL-путей. Windows CI выполняется
 на Windows Server 2022, а не непосредственно на Windows 10/11 или Windows 7.
 Реальные пользовательские кошельки не использовались в тестах.
 

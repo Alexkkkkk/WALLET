@@ -27,36 +27,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare Conda environment with Berkeley DB
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Set up official Python x64 with Tcl/Tk
+        uses: actions/setup-python@v5
         with:
-          activate-environment: wallet-build
-          auto-activate-base: false
           python-version: ${{ matrix.python-version }}
-          channels: conda-forge
-          channel-priority: strict
+          architecture: x64
+
+      - name: Checkout pinned Microsoft vcpkg recipe
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: e54ef0fcc9a82033a61e51002552a910a5d57282
+          path: .build/vcpkg
+
+      - name: Build native Berkeley DB 4.8 (static, MSVC DLL runtime)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $env:VCPKG_ROOT = (Resolve-Path .build/vcpkg).Path
+          & .\.build\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          & .\.build\vcpkg\vcpkg.exe install berkeleydb:x64-windows-static-md --disable-metrics
 
       - name: Install native and Python dependencies
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          conda install -n wallet-build -y -c conda-forge berkeley-db
-          $prefix = conda run -n wallet-build python -c "import sys; print(sys.prefix)"
-          $env:BERKELEYDB_DIR = $prefix.Trim()
-          conda run -n wallet-build python -m pip install --upgrade pip setuptools wheel
-          conda run -n wallet-build python -m pip install -e ".[ai,test]" pyinstaller
-          conda run -n wallet-build python -c "from Crypto.Cipher import AES; from cryptography.hazmat.primitives.asymmetric import ec; import berkeleydb.db, numpy, openai, tkinter; print('All runtime imports OK')"
+          python -m pip install --upgrade pip setuptools wheel
+          python scripts/build_windows_bdb.py .build/vcpkg/installed/x64-windows-static-md .build/bdb-wheels
+          python -m pip install -e ".[ai,test]" pyinstaller
+          python -c "from Crypto.Cipher import AES; from cryptography.hazmat.primitives.asymmetric import ec; import berkeleydb.db, numpy, openai, tkinter; assert berkeleydb.db.version()[:2] == (4, 8); print('All runtime imports OK; BDB:', berkeleydb.db.version())"
 
       - name: Self-test and package test
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          conda run -n wallet-build python -m wallet_recover --selftest
-          conda run -n wallet-build python -m compileall -q wallet_recover wallet_recover.py scripts
+          python -m wallet_recover --selftest
+          python -m compileall -q wallet_recover wallet_recover.py scripts
 
       - name: Build one-file GUI executable
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          conda run -n wallet-build python -m PyInstaller `
+          python -m PyInstaller `
             --noconfirm --clean --onefile --console `
             --name WALLET `
             --collect-all=wallet_recover `
@@ -71,13 +81,13 @@ jobs:
       - name: Verify standalone EXE outside source directory
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          conda run -n wallet-build python scripts/verify_windows_bundle.py dist/WALLET.exe
+          python scripts/verify_windows_bundle.py dist/WALLET.exe
 
       - name: Create portable archive
         id: archive
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $version = (conda run -n wallet-build python -c "from wallet_recover import __version__; print(__version__)").Trim()
+          $version = (python -c "from wallet_recover import __version__; print(__version__)").Trim()
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") {
             throw "Release tag $env:GITHUB_REF_NAME does not match package v$version"
           }
@@ -86,13 +96,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item dist/WALLET.exe release/WALLET.exe
           Copy-Item README.md, LICENSE, examples release/ -Recurse
+          Copy-Item .build/bdb-wheels/licenses release/THIRD-PARTY-LICENSES -Recurse
           @"
           WALLET v$version — Windows 10 / 11 x64 portable
           NOT FOR WINDOWS 7. This build uses Python ${{ matrix.python-version }}.
 
           Распакуйте ZIP и запустите WALLET.exe для открытия русского интерфейса.
-          Python и pip устанавливать не нужно. Python, Tcl/Tk, Berkeley DB,
+          Python и pip устанавливать не нужно. Python, Tcl/Tk, Berkeley DB 4.8,
           cryptography, NumPy и OpenAI-клиент включены в EXE.
+          Нативная BDB собрана статически по закреплённому рецепту Microsoft vcpkg.
           Ollama, его модели и Hashcat — отдельные необязательные программы.
 
           Проверки EXE: версия, self-test, офлайн AI, чтение синтетической BDB,
@@ -102,8 +114,9 @@ jobs:
 
           Используйте только копию своего кошелька или с разрешения владельца.
           Не публикуйте кошелёк, словари и найденные пароли.
+          Лицензия MIT относится к коду WALLET; сторонние компоненты имеют свои лицензии.
           "@ | Set-Content -Encoding UTF8 release/README-WINDOWS.txt
-          conda run -n wallet-build python -m pip freeze | Set-Content -Encoding UTF8 release/BUILD-DEPENDENCIES.txt
+          python -m pip freeze | Set-Content -Encoding UTF8 release/BUILD-DEPENDENCIES.txt
           Compress-Archive -Path release/* -DestinationPath "$asset.zip" -Force
           $hash = (Get-FileHash "$asset.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $asset.zip" | Set-Content -Encoding ascii "$asset.zip.sha256"
