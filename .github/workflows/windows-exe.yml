@@ -45,6 +45,8 @@ jobs:
           $env:BERKELEYDB_DIR = $prefix.Trim()
           conda run -n wallet-build python -m pip install --upgrade pip setuptools wheel
           conda run -n wallet-build python -m pip install -e ".[ai,test]"
+          conda run -n wallet-build python -m pip install --upgrade --force-reinstall "pycryptodome>=3.20"
+          conda run -n wallet-build python -c "from Crypto.Cipher import AES; print('pycryptodome import ok')"
           conda run -n wallet-build python -m pip install pyinstaller
 
       - name: Self-test and package test
