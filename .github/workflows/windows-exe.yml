@@ -59,11 +59,15 @@ jobs:
           conda run -n wallet-build python -m PyInstaller `
             --noconfirm --clean --onefile --windowed `
             --name WALLET `
+            --hidden-import=Crypto `
+            --hidden-import=Crypto.Cipher `
+            --hidden-import=Crypto.Cipher.AES `
             --hidden-import=berkeleydb `
             --hidden-import=berkeleydb.db `
             --hidden-import=wallet_recover.personal_wordlist `
             --collect-all=berkeleydb `
-            --collect-all=Crypto `
+            --collect-submodules=Crypto `
+            --collect-data=Crypto `
             --collect-all=cryptography `
             --collect-all=numpy `
             --collect-all=openai `
