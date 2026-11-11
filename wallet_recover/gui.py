@@ -9,6 +9,7 @@ from .cli import save_password
 from .errors import WalletError
 from .progress import Progress
 from .plan import wallet_plan
+from .personal_wordlist import candidates as personal_candidates, write_unique
 from .runner import RecoveryEngine, check_wordlist, inspect_wallet
 
 
@@ -100,20 +101,28 @@ class Application:
         seeds_entry = ttk.Entry(ai, textvariable=self.seeds)
         seeds_entry.grid(row=1, column=1, sticky="ew", pady=4)
         self.inputs.append(seeds_entry)
-        ttk.Label(ai, text="Провайдер").grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Label(ai, text="Даты (через запятую)").grid(row=2, column=0, sticky="w", pady=4)
+        self.dates = tk.StringVar()
+        dates_entry = ttk.Entry(ai, textvariable=self.dates)
+        dates_entry.grid(row=2, column=1, sticky="ew", pady=4)
+        self.inputs.append(dates_entry)
+        ttk.Label(ai, text="Провайдер").grid(row=3, column=0, sticky="w", pady=4)
         self.provider = tk.StringVar(value="offline")
         provider_box = ttk.Combobox(ai, textvariable=self.provider, state="readonly", width=10,
                                     values=("offline", "ollama", "openai"))
-        provider_box.grid(row=2, column=1, sticky="w", pady=4)
+        provider_box.grid(row=3, column=1, sticky="w", pady=4)
         self.inputs.append(provider_box)
-        ttk.Label(ai, text="Лимит кандидатов").grid(row=2, column=2, sticky="e", padx=(16, 8))
+        ttk.Label(ai, text="Лимит кандидатов").grid(row=3, column=2, sticky="e", padx=(16, 8))
         self.limit = tk.StringVar(value="5000")
         limit_spin = ttk.Spinbox(ai, from_=1, to=1000000, width=8, textvariable=self.limit)
-        limit_spin.grid(row=2, column=3, sticky="w", pady=4)
+        limit_spin.grid(row=3, column=3, sticky="w", pady=4)
         self.inputs.append(limit_spin)
         self.ai_btn = ttk.Button(ai, text="Создать AI-словарь…", command=self.generate_ai)
-        self.ai_btn.grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+        self.ai_btn.grid(row=4, column=0, sticky="w", pady=4)
         self.inputs.append(self.ai_btn)
+        self.personal_btn = ttk.Button(ai, text="Создать персональный словарь", command=self.generate_personal)
+        self.personal_btn.grid(row=4, column=1, columnspan=2, sticky="w", pady=4)
+        self.inputs.append(self.personal_btn)
         hc = ttk.LabelFrame(frame, text="Локальный Hashcat (mode 11300, извлечённый вами хеш)", padding=12)
         hc.grid(row=9, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         hc.columnconfigure(1, weight=1)
@@ -383,6 +392,12 @@ class Application:
                         self.append("Сетевые запросы не выполнялись; файл создан с правами 0600.")
                     self.status.set("AI-словарь готов: %d кандидатов" % count)
                     self.set_busy(False)
+                elif event == "personal_done":
+                    path, count = args
+                    self.words.set(path)
+                    self.append("Персональный словарь создан: %s (%d кандидатов)" % (path, count))
+                    self.status.set("Персональный словарь готов и выбран для запуска")
+                    self.set_busy(False)
                 elif event == "hashcat_done":
                     code, state_dir = args
                     self.append("Hashcat завершил работу, код выхода: %d. Potfile: %s/wallet.potfile" % (code, state_dir))
@@ -466,6 +481,41 @@ class Application:
                                           ollama_url="http://127.0.0.1:11434",
                                           include_neural_lm=True, rank=True)
                 self.sink("ai_done", path, count, provider)
+            except Exception as exc:
+                self.sink("failed", str(exc))
+        threading.Thread(target=task, daemon=True).start()
+
+    def generate_personal(self):
+        seeds = [item.strip() for item in self.seeds.get().split(",") if item.strip()]
+        dates = [item.strip() for item in self.dates.get().split(",") if item.strip()]
+        if not seeds:
+            messagebox.showerror("Персональный словарь", "Укажите хотя бы одно собственное ключевое слово.", parent=self.root)
+            return
+        try:
+            limit = int(self.limit.get())
+            if limit < 1:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Лимит", "Лимит кандидатов — целое число не меньше 1.", parent=self.root)
+            return
+        path = filedialog.asksaveasfilename(
+            parent=self.root, title="Новый персональный словарь", initialfile="personal_words.txt",
+            defaultextension=".txt", confirmoverwrite=False)
+        if not path:
+            return
+        if os.path.lexists(path):
+            messagebox.showerror("Файл существует", "Перезапись запрещена; выберите новое имя.", parent=self.root)
+            return
+        self.set_busy(True)
+        self.status.set("Создание персонального словаря офлайн…")
+        def task():
+            try:
+                count = write_unique(
+                    os.path.abspath(path),
+                    personal_candidates(seeds, dates, range(2009, 2016)),
+                    limit,
+                )
+                self.sink("personal_done", path, count)
             except Exception as exc:
                 self.sink("failed", str(exc))
         threading.Thread(target=task, daemon=True).start()
