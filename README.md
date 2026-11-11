@@ -121,6 +121,10 @@ python -m wallet_recover.gui
 
 В этой среде **нет Windows**. Проверены Linux/Python 3.12, GUI через Xvfb, синтетические BDB-кошельки и синтаксис модулей по грамматике Python 3.8. Проверка синтаксиса не является тестом исполнения на Python 3.8 или Windows. Готового и проверенного `.exe` пока нет.
 
+Workflow `.github/workflows/windows-exe.yml` автоматически собирает portable `WALLET.exe` на GitHub Actions для Python 3.11 и 3.12. Сборка устанавливает Berkeley DB через Conda, собирает нативный Python-модуль, запускает `--selftest`, проверяет созданный EXE и сохраняет ZIP как Actions artifact. При создании тега `v*` ZIP для Python 3.12 дополнительно прикладывается к GitHub Release.
+
+GitHub-hosted runners не предоставляют Windows 7. Поэтому этот workflow проверяет современные Windows runners (совместимый профиль Windows 10/11), а отдельную проверку Windows 7 нужно выполнять на self-hosted runner с Python 3.8.10 и соответствующей 64-битной Berkeley DB. Непроверенный EXE нельзя считать совместимым с Windows 7.
+
 **Нерешённый блокер упаковки:** проверка PyPI не обнаружила Windows wheels для `bsddb3`/`berkeleydb` под целевые CPython 3.8 и 3.11 x64. Поэтому `pip install -r requirements.txt` на чистой Windows может остановиться на сборке BDB; одной установки Python недостаточно. Нужна собственная сборка драйвера с совместимой нативной Berkeley DB и компилятором соответствующей архитектуры, либо проверенный бинарный пакет из доверенного источника. Проект не скачивает случайные DLL. Ошибка драйвера показывается в журнале; открытие самого окна драйвера не требует. WSL не является решением для Windows 7.
 
 Python 3.8 уже не получает исправлений безопасности. Старый `cryptography` выбран только как экспериментальная совместимая ветка, а не как безопасная актуальная рекомендация. Для реальных средств предпочтительна поддерживаемая ОС. Источники: [Python 3.8.10](https://www.python.org/downloads/release/python-3810/), [changelog cryptography, 42.0.7](https://cryptography.io/en/latest/changelog/).

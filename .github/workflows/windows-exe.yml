@@ -1,0 +1,101 @@
+name: Windows EXE
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  build-windows:
+    name: Windows EXE (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Conda environment with Berkeley DB
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: wallet-build
+          auto-activate-base: false
+          python-version: ${{ matrix.python-version }}
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install native and Python dependencies
+        shell: pwsh
+        run: |
+          conda install -n wallet-build -y -c conda-forge berkeley-db
+          $prefix = conda run -n wallet-build python -c "import sys; print(sys.prefix)"
+          $env:BERKELEYDB_DIR = $prefix.Trim()
+          conda run -n wallet-build python -m pip install --upgrade pip setuptools wheel
+          conda run -n wallet-build python -m pip install -e ".[ai,test]"
+          conda run -n wallet-build python -m pip install pyinstaller
+
+      - name: Self-test and package test
+        shell: pwsh
+        run: |
+          conda run -n wallet-build python -m wallet_recover --selftest
+          conda run -n wallet-build python -m compileall -q wallet_recover wallet_recover.py
+
+      - name: Build one-file GUI executable
+        shell: pwsh
+        run: |
+          conda run -n wallet-build python -m PyInstaller `
+            --noconfirm --clean --onefile --windowed `
+            --name WALLET `
+            --hidden-import=berkeleydb `
+            --hidden-import=berkeleydb.db `
+            --collect-all=berkeleydb `
+            wallet_recover.py
+          if (-not (Test-Path dist/WALLET.exe)) { throw "dist/WALLET.exe was not created" }
+
+      - name: Verify EXE
+        shell: pwsh
+        run: |
+          & .\dist\WALLET.exe --selftest
+          if ($LASTEXITCODE -ne 0) { throw "WALLET.exe self-test failed" }
+
+      - name: Create portable archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item dist/WALLET.exe release/WALLET.exe
+          Copy-Item README.md, LICENSE, examples release/ -Recurse
+          @"
+          WALLET Windows portable build
+
+          Run WALLET.exe for the graphical interface.
+          Use only with your own wallet backup or with the owner's permission.
+          Keep wallet backups, wordlists and recovered passwords private.
+          "@ | Set-Content -Encoding UTF8 release/README-WINDOWS.txt
+          Compress-Archive -Path release/* -DestinationPath "WALLET-windows-py${{ matrix.python-version }}.zip" -Force
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WALLET-windows-py${{ matrix.python-version }}
+          path: WALLET-windows-py${{ matrix.python-version }}.zip
+          if-no-files-found: error
+
+      - name: Attach release asset
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.python-version == '3.12'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: WALLET-windows-py${{ matrix.python-version }}.zip
+          fail_on_unmatched_files: true
