@@ -18,6 +18,8 @@ pip install -q -e '.[ai,test]'
 echo "== checks =="
 python -m wallet_recover --selftest
 xvfb-run -a python -m pytest -q
+rm -rf dist build *.egg-info
+python -m build
 
 echo
 echo "Готово. Дальше:"
