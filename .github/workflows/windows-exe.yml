@@ -61,7 +61,12 @@ jobs:
             --name WALLET `
             --hidden-import=berkeleydb `
             --hidden-import=berkeleydb.db `
+            --hidden-import=wallet_recover.personal_wordlist `
             --collect-all=berkeleydb `
+            --collect-all=Crypto `
+            --collect-all=cryptography `
+            --collect-all=numpy `
+            --collect-all=openai `
             wallet_recover.py
           if (-not (Test-Path dist/WALLET.exe)) { throw "dist/WALLET.exe was not created" }
 
@@ -70,6 +75,9 @@ jobs:
         run: |
           & .\dist\WALLET.exe --selftest
           if ($LASTEXITCODE -ne 0) { throw "WALLET.exe self-test failed" }
+          $candidates = Join-Path $env:RUNNER_TEMP "wallet-candidates.txt"
+          & .\dist\WALLET.exe --ai-generate $candidates --memory "build-check" --ai-provider offline --ai-limit 20
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $candidates)) { throw "Bundled offline AI dependencies failed" }
 
       - name: Create portable archive
         shell: pwsh
@@ -78,9 +86,10 @@ jobs:
           Copy-Item dist/WALLET.exe release/WALLET.exe
           Copy-Item README.md, LICENSE, examples release/ -Recurse
           @"
-          WALLET Windows portable build
+          WALLET Windows portable build (all Python runtime dependencies bundled)
 
-          Run WALLET.exe for the graphical interface.
+          Run WALLET.exe for the graphical interface. Python, Berkeley DB,
+          cryptography, AI modules and other runtime packages are bundled.
           Use only with your own wallet backup or with the owner's permission.
           Keep wallet backups, wordlists and recovered passwords private.
           "@ | Set-Content -Encoding UTF8 release/README-WINDOWS.txt
